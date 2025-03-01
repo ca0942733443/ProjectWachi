@@ -24,12 +24,12 @@ const CheckinPage = () => {
   const [studentsScores, setStudentsScores] = useState([]);
   const [showScores, setShowScores] = useState(false);
   const [checkinCode, setCheckinCode] = useState(null); // ✅ เก็บ Check-in Code
+  const [showCheckinCode, setShowCheckinCode] = useState(false); // ✅ เพิ่ม state ควบคุมปุ่ม
 
 
     const handleGoToQuestionPage = () => {
     navigate(`/qa/${classId}`);
   };
-
   const fetchCheckinCode = async () => {
     if (!latestCheckinNo) {
       alert("❌ ไม่มีรหัสเช็คชื่อที่เปิดอยู่!");
@@ -40,6 +40,7 @@ const CheckinPage = () => {
     );
     if (checkinDoc.exists()) {
       setCheckinCode(checkinDoc.data().code);
+      setShowCheckinCode(true); // ✅ ตั้งค่าให้แสดงรหัสเช็คชื่อ
     } else {
       setCheckinCode(null);
       alert("❌ ไม่พบรหัสเช็คชื่อ!");
@@ -200,9 +201,19 @@ const CheckinPage = () => {
         <button className="btn btn-danger" onClick={handleCloseCheckIn}>
           ❌ ปิดการเช็คชื่อ
         </button>
-        <button className="btn btn-warning" onClick={fetchCheckinCode}>
-          🔍 แสดงรหัสเช็คชื่อ
-        </button>
+        <button
+  className="btn btn-warning"
+  onClick={() => {
+    if (showCheckinCode) {
+      setShowCheckinCode(false);
+      setCheckinCode(null); // ✅ ซ่อนรหัสเช็คชื่อ
+    } else {
+      fetchCheckinCode();
+    }
+  }}
+>
+  {showCheckinCode ? "🔒 ซ่อนรหัสเช็คชื่อ" : "🔍 แสดงรหัสเช็คชื่อ"}
+</button>
       </div>
 
        {/* ✅ แสดง Check-in Code */}
@@ -212,13 +223,16 @@ const CheckinPage = () => {
         </div>
       )}
 
-      <div className="text-center mb-4">
-        <h5>🔗 QR Code สำหรับเช็คชื่อ</h5>
-        <QRCodeCanvas
-          value={`${window.location.origin}/checkin/${classId}`}
-          size={200}
-        />
-      </div>
+{checkinCode && (
+  <div className="text-center mb-4">
+    <h5>🔗 QR Code สำหรับเช็คชื่อ</h5>
+    <QRCodeCanvas
+      value={`${window.location.origin}/checkin/${classId}/${checkinCode}`}
+      size={200}
+    />
+  </div>
+)}
+
 
       {/* ✅ รายชื่อนักศึกษาที่เช็คชื่อแล้ว */}
       <div className="card">
