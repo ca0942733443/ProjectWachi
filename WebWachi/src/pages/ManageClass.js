@@ -1,17 +1,19 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { db } from "../firebase";
-import { doc, getDoc, updateDoc, collection, query, getDocs, setDoc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, collection, query, getDocs } from "firebase/firestore";
 import { QRCodeCanvas } from "qrcode.react";
 import "bootstrap/dist/css/bootstrap.min.css";
-import { v4 as uuidv4 } from "uuid";
 
 const ManageClass = () => {
   const { classId } = useParams();
   const navigate = useNavigate();
   const [classInfo, setClassInfo] = useState(null);
-  const [students, setStudents] = useState([]);
   const [checkins, setCheckins] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [showStudents, setShowStudents] = useState(false); // ✅ แสดง/ซ่อนรายชื่อนักศึกษา
+
+
 
   useEffect(() => {
     const fetchClassData = async () => {
@@ -26,30 +28,49 @@ const ManageClass = () => {
       }
     };
 
-    const fetchStudents = async () => {
-      const q = query(collection(db, `classroom/${classId}/students`));
-      const querySnapshot = await getDocs(q);
-      setStudents(querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    const fetchCheckins = async () => {
+      const checkinQuery = query(collection(db, `classroom/${classId}/checkin`));
+      const checkinSnapshot = await getDocs(checkinQuery);
+
+      const checkinData = await Promise.all(
+        checkinSnapshot.docs.map(async (docSnap) => {
+          const checkinInfo = docSnap.data();
+          const studentQuery = collection(db, `classroom/${classId}/checkin/${docSnap.id}/students`);
+          const studentSnapshot = await getDocs(studentQuery);
+
+          return {
+            id: docSnap.id,
+            ...checkinInfo,
+            studentCount: studentSnapshot.size,
+          };
+        })
+      );
+
+      setCheckins(checkinData);
     };
 
-    const fetchCheckins = async () => {
-      const q = query(collection(db, `classroom/${classId}/checkin`));
-      const querySnapshot = await getDocs(q);
-      setCheckins(querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    const fetchStudents = async () => {
+      const studentQuery = query(collection(db, `classroom/${classId}/students`));
+      const studentSnapshot = await getDocs(studentQuery);
+
+      const studentList = studentSnapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      }));
+
+      setStudents(studentList);
     };
 
     fetchClassData();
-    fetchStudents();
     fetchCheckins();
+    fetchStudents();
   }, [classId, navigate]);
 
   const handleStartCheckIn = () => {
     navigate(`/checkin/${classId}`);
   };
 
-  const handleGoToQuestionPage = () => {
-    navigate(`/qa/${classId}`);
-  };
+  
 
   return (
     <div className="container mt-5">
@@ -64,7 +85,6 @@ const ManageClass = () => {
       )}
 
       <button className="btn btn-primary mb-3" onClick={handleStartCheckIn}>เริ่มเช็คชื่อ</button>
-      <button className="btn btn-warning mb-3 ms-2" onClick={handleGoToQuestionPage}>ไปที่หน้าถาม-ตอบ</button>
 
       <h5>ประวัติการเช็คชื่อ</h5>
       <table className="table">
@@ -81,7 +101,7 @@ const ManageClass = () => {
             <tr key={index}>
               <td>{index + 1}</td>
               <td>{record.date}</td>
-              <td>{record.students ? Object.keys(record.students).length : 0}</td>
+              <td>{record.studentCount}</td>
               <td>{record.status === 1 ? "กำลังเรียน" : "เสร็จสิ้น"}</td>
             </tr>
           ))}
@@ -89,9 +109,42 @@ const ManageClass = () => {
       </table>
 
       <button className="btn btn-secondary mt-3" onClick={() => navigate("/dashboard")}>กลับไป Dashboard</button>
+
+      {/* ✅ ปุ่มเปิด/ปิดแสดงรายชื่อนักศึกษา */}
+      <button className="btn btn-info mt-3 ms-2" onClick={() => setShowStudents(!showStudents)}>
+        {showStudents ? "ซ่อนรายชื่อนักศึกษา" : "แสดงรายชื่อนักศึกษา"}
+      </button>
+
+      {/* ✅ แสดงรายชื่อนักศึกษาเมื่อ showStudents เป็น true */}
+      {showStudents && (
+        <div className="mt-4">
+          <h5>รายชื่อนักศึกษา</h5>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>รหัส</th>
+                <th>ชื่อ</th>
+                <th>รูปภาพ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((student, index) => (
+                <tr key={index}>
+                  <td>{index + 1}</td>
+                  <td>{student.stdid}</td>
+                  <td>{student.name}</td>
+                  <td>
+                    <img src={student.photo} alt="Student" width="50" height="50" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 };
 
 export default ManageClass;
-  
