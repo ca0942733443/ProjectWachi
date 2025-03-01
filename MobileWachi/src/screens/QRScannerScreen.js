@@ -9,39 +9,73 @@ export default function QRScannerScreen({ navigation }) {
 
   useEffect(() => {
     (async () => {
-      if (!permission?.granted) {
+      if (!permission) {
         await requestPermission();
       }
     })();
   }, [permission]);
 
-  const extractCid = (data) => {
-    // 🔥 ใช้ Regular Expression ดึงค่า cid ออกจาก URL หรือคืนค่าเดิมถ้าไม่ใช่ URL
-    const match = data.match(/\/register\/([a-zA-Z0-9_-]+)/);
-    return match ? match[1] : data;
+  const extractData = (data) => {
+    const registerMatch = data.match(/\/register\/([a-zA-Z0-9_-]+)/);
+    const checkinMatch = data.match(/\/checkin\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9]+)/);
+
+    if (registerMatch) {
+      return { type: "cid", value: registerMatch[1] };
+    } else if (checkinMatch) {
+      return { type: "checkin", cid: checkinMatch[1], code: checkinMatch[2] };
+    } else {
+      return { type: "unknown", value: data };
+    }
   };
 
   const handleScan = ({ data }) => {
     if (isProcessing.current) return;
-    isProcessing.current = true; 
+    isProcessing.current = true;
 
-    const cid = extractCid(data); // ตัดค่าที่ไม่จำเป็นออก
-
+    const extracted = extractData(data);
     setScanned(true);
-    console.log("✅ QR Code ที่สแกนได้:", cid);
+    console.log("✅ QR Code ที่สแกนได้:", extracted);
 
-    Alert.alert("สแกนสำเร็จ", `รหัสวิชา: ${cid}`, [
-      {
-        text: "OK",
-        onPress: () => {
-          navigation.navigate("AddClass", { scannedCid: cid });
-          setTimeout(() => {
+    if (extracted.type === "cid") {
+      Alert.alert("สแกนสำเร็จ", `รหัสวิชา: ${extracted.value}`, [
+        {
+          text: "OK",
+          onPress: () => {
+            navigation.navigate("AddClass", { scannedCid: extracted.value });
+            setTimeout(() => {
+              isProcessing.current = false;
+              setScanned(false);
+            }, 2000);
+          },
+        },
+      ]);
+    } else if (extracted.type === "checkin") {
+      Alert.alert("สแกนสำเร็จ", `รหัสเช็คชื่อ: ${extracted.code}`, [
+        {
+          text: "OK",
+          onPress: () => {
+            navigation.navigate("Checkin", {
+              cid: extracted.cid,
+              checkinCode: extracted.code,
+            });
+            setTimeout(() => {
+              isProcessing.current = false;
+              setScanned(false);
+            }, 2000);
+          },
+        },
+      ]);
+    } else {
+      Alert.alert("QR Code ไม่รองรับ", `ข้อมูลที่สแกน: ${extracted.value}`, [
+        {
+          text: "OK",
+          onPress: () => {
             isProcessing.current = false;
             setScanned(false);
-          }, 2000);
+          },
         },
-      },
-    ]);
+      ]);
+    }
   };
 
   if (!permission) {
@@ -55,7 +89,7 @@ export default function QRScannerScreen({ navigation }) {
   if (!permission.granted) {
     return (
       <View style={styles.messageContainer}>
-        <Text> ไม่สามารถเข้าถึงกล้องได้</Text>
+        <Text>❌ ไม่สามารถเข้าถึงกล้องได้</Text>
       </View>
     );
   }
@@ -73,16 +107,15 @@ export default function QRScannerScreen({ navigation }) {
           style={styles.scanAgainButton}
           onPress={() => setScanned(false)}
         >
-          <Text style={styles.scanAgainText}>สแกนอีกครั้ง</Text>
+          <Text style={styles.scanAgainText}>🔄 สแกนอีกครั้ง</Text>
         </TouchableOpacity>
       )}
 
-      {/* 🔙 ปุ่มย้อนกลับ */}
       <TouchableOpacity
         style={styles.backButton}
         onPress={() => navigation.goBack()}
       >
-        <Text style={styles.backButtonText}>กลับ</Text>
+        <Text style={styles.backButtonText}>🔙 กลับ</Text>
       </TouchableOpacity>
     </View>
   );

@@ -1,67 +1,99 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, Button, FlatList } from "react-native";
-import { useRoute } from "@react-navigation/native";
+import { View, Text, TextInput, Button, Alert, AsyncStorage } from "react-native";
+import { useRoute, useNavigation } from "@react-navigation/native";
 import { db, auth } from "../firebase";
-import { doc, getDoc, updateDoc, collection, setDoc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, setDoc, onSnapshot } from "firebase/firestore";
 
 const QuestionScreen = () => {
   const route = useRoute();
+  const navigation = useNavigation();
   const { cid } = route.params;
+
   const [cno, setCno] = useState("");
   const [questionShow, setQuestionShow] = useState(false);
   const [answer, setAnswer] = useState("");
-  const [answers, setAnswers] = useState([]);
+  const [questionNo, setQuestionNo] = useState(null);
+
+  useEffect(() => {
+    const loadLocalData = async () => {
+      const storedCno = await AsyncStorage.getItem(`cno_${cid}`);
+      if (storedCno) {
+        setCno(storedCno);
+      } else {
+        fetchOpenCheckin(); // ✅ ถ้าไม่มีข้อมูลใน LocalStorage ให้โหลดจาก Firebase
+      }
+    };
+    loadLocalData();
+  }, [cid]);
+
+  const fetchOpenCheckin = async () => {
+    const checkinQuery = query(collection(db, `classroom/${cid}/checkin`), where("status", "==", 1));
+    const querySnapshot = await getDocs(checkinQuery);
+
+    if (!querySnapshot.empty) {
+      const openCheckin = querySnapshot.docs[0];
+      setCno(openCheckin.id);
+      await AsyncStorage.setItem(`cno_${cid}`, openCheckin.id);
+    }
+  };
 
   useEffect(() => {
     if (!cno) return;
 
     const questionRef = doc(db, `classroom/${cid}/checkin/${cno}`);
-    const unsubscribe = onSnapshot(questionRef, (docSnap) => {
+    const unsubscribeQuestion = onSnapshot(questionRef, (docSnap) => {
       if (docSnap.exists()) {
         setQuestionShow(docSnap.data().question_show);
+        setQuestionNo(docSnap.data().question_no);
       }
     });
 
-    const answerRef = collection(db, `classroom/${cid}/checkin/${cno}/answers`);
-    const answerUnsub = onSnapshot(answerRef, (snapshot) => {
-      setAnswers(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-    });
-
     return () => {
-      unsubscribe();
-      answerUnsub();
+      unsubscribeQuestion();
     };
   }, [cid, cno]);
 
   const handleSubmitAnswer = async () => {
-    if (!answer.trim()) return;
+    if (!answer.trim()) {
+      Alert.alert("กรุณากรอกคำตอบ");
+      return;
+    }
 
-    const answerRef = doc(db, `classroom/${cid}/checkin/${cno}/answers/${auth.currentUser.uid}`);
-    await setDoc(answerRef, {
+    const studentAnswerRef = doc(db, `classroom/${cid}/checkin/${cno}/answers/${questionNo}/students/${auth.currentUser.uid}`);
+    await setDoc(studentAnswerRef, {
       text: answer,
       time: new Date().toISOString(),
     });
 
     setAnswer("");
+    Alert.alert("ส่งคำตอบสำเร็จ!");
   };
 
   return (
     <View style={{ padding: 20 }}>
       <Text>ตอบคำถาม</Text>
-      <TextInput placeholder="ลำดับการเช็คชื่อ (CNO)" value={cno} onChangeText={setCno} keyboardType="numeric" />
+
       {questionShow ? (
         <>
-          <TextInput placeholder="กรอกคำตอบของคุณ" value={answer} onChangeText={setAnswer} />
-          <Button title="ส่งคำตอบ" onPress={handleSubmitAnswer} />
-          <FlatList
-            data={answers}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <Text>{item.text} - {item.time}</Text>}
+          <TextInput
+            placeholder="กรอกคำตอบของคุณ"
+            value={answer}
+            onChangeText={setAnswer}
+            style={{ borderWidth: 1, padding: 10, marginVertical: 10 }}
           />
+          <Button title="ส่งคำตอบ" onPress={handleSubmitAnswer} />
         </>
       ) : (
-        <Text>ยังไม่มีคำถาม</Text>
+        <Text>❌ ยังไม่มีคำถาม</Text>
       )}
+
+      <Button
+        title="กลับหน้าหลัก"
+        onPress={() => {
+          AsyncStorage.setItem(`cno_${cid}`, cno);
+          navigation.navigate("Home");
+        }}
+      />
     </View>
   );
 };

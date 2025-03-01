@@ -38,7 +38,7 @@ const LoginScreen = () => {
       <TextInput placeholder="อีเมล" value={email} onChangeText={setEmail} keyboardType="email-address" style={styles.input} />
       <TextInput placeholder="รหัสผ่าน" value={password} onChangeText={setPassword} secureTextEntry style={styles.input} />
       <Button title="เข้าสู่ระบบ" onPress={handleLogin} />
-      <Text onPress={() => navigation.navigate("RegisterScreen")} style={{ color: "blue", marginTop: 10 }}>
+      <Text onPress={() => navigation.navigate("Register")} style={{ color: "blue", marginTop: 10 }}>
         สมัครสมาชิก
       </Text>
     </View>
